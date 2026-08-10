@@ -1,0 +1,9 @@
+[package]
+name = "Gameboy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cpal = "0.18.1"
+minifb = "0.28.0"
+ringbuf = "0.5.1"
