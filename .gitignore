@@ -1,7 +1,5 @@
 /target
 *.sav
-*.gb
-*.gbc
-/roms
+/roms/games
 demo.gif
 README.md

@@ -1,1 +1,3 @@
-roms/tests/* linguist-vendored
+*.gb linguist-vendored
+*.s linguist-vendored
+*.asm linguist-vendored
