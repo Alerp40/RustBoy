@@ -1,8 +1,11 @@
-use crate::apu::Apu;
+use ringbuf::traits::RingBuffer;
+
 use crate::cartridge::Cartridge;
 use crate::ppu::Ppu;
+use crate::apu::Apu;
 const WRAM_SIZE: usize = 8192;
 pub struct Bus {
+    apu : Apu,
     ppu: Ppu,
     cartridge: Cartridge,
     wram: [u8; WRAM_SIZE],
@@ -23,9 +26,11 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new(cart: Cartridge) -> Self {
+    pub fn new(cart: Cartridge, sample_rate: f32) -> Self {
         let ppu = Ppu::new();
+        let apu = Apu::new(sample_rate);
         Bus {
+            apu,
             ppu,
             cartridge: cart,
             wram: [0; 8192],
@@ -168,6 +173,7 @@ impl Bus {
                 }
             }
 
+            0xFF16..=0xFF19 => self.apu.write(addr, byte),
 
             0xA000..=0xBFFF => self.cartridge.write_decoder(addr, byte),
 
@@ -195,8 +201,12 @@ impl Bus {
             _ => (),
         }
     }
+    pub fn tick_apu(&mut self, cycles: u8) -> Option<f32>{
+        self.apu.tick(cycles)
+    }
 
     pub fn tick(&mut self, cycles: u8) {
+        self.apu.tick(cycles);
         self.cycle_acc += cycles as u16;
         self.cartridge.tick_rtc(cycles);
         if self.cycle_acc >= 256 {

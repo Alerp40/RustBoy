@@ -1,3 +1,4 @@
+mod apu;
 mod bus;
 mod cartridge;
 mod cpu;
@@ -10,6 +11,9 @@ use cartridge::Cartridge;
 use minifb::Key;
 use minifb::Window;
 use minifb::WindowOptions;
+use ringbuf::SharedRb;
+use ringbuf::storage::Heap;
+use ringbuf::{traits::*, HeapRb};
 
 const SCREEN_HEIGHT: usize = 144;
 const SCREEN_WIDTH: usize = 160;
@@ -32,9 +36,31 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    let heap: SharedRb<Heap<f32>> = HeapRb::new(4096);
+    let ( mut producer, mut consumer) = heap.split();
+    let host = cpal::default_host();
+    let device = host.default_output_device().expect("No default output device found");
+    let supported_config = device.default_output_config().expect("No default stream config for device");
+    let sample_rate = supported_config.sample_rate();
+    let channels = supported_config.channels();
+    let sample_format = supported_config.sample_format();
+    let stream_config = supported_config.into();
+    let stream = device.build_output_stream(stream_config, 
+        move |data: &mut [f32], _:&cpal::OutputCallbackInfo | {
+            for frame in data.chunks_mut(channels as usize){
+                frame.iter_mut().for_each(|channel| *channel = consumer.try_pop().unwrap_or(0.0));
+            }
+        },
+        move |err| {
+            eprint!("an error ocurred on stream, {}", err);
+        },
+        None).expect("error building stream");
+    let _stream = stream.play();
+
     let save = std::fs::read(Path::new(&sys_path).with_extension("sav")).unwrap_or_default();
     let cart = Cartridge::new(rom, &save);
-    let mut bus = Bus::new(cart);
+    let mut bus = Bus::new(cart,sample_rate as f32);
     let mut cpu = Cpu::new();
     let mut window = Window::new(
         "RustBoy",
@@ -79,6 +105,9 @@ fn main() {
         bus.set_p1_buttons(direction, action);
         let cycles = cpu.step(&mut bus);
         bus.tick(cycles);
+        if let Some(audio) = bus.tick_apu(cycles){
+            producer.try_push(audio);
+        }
         cpu_counter += 1;
         if cpu_counter >= 70224 {
             window.update();
