@@ -120,9 +120,7 @@ impl Bus {
 
             0xFF07 => self.tac,
 
-            0xFF26 => 0xF0,
-
-            0xFF10..=0xFF3F => 0x00,
+            0xFF10..=0xFF3F => self.apu.read(addr),
 
             0xA000..=0xBFFF => self.cartridge.read(addr),
 
@@ -173,7 +171,7 @@ impl Bus {
                 }
             }
 
-            0xFF16..=0xFF19 => self.apu.write(addr, byte),
+            0xFF10..=0xFF3F => self.apu.write(addr, byte),
 
             0xA000..=0xBFFF => self.cartridge.write_decoder(addr, byte),
 
@@ -201,12 +199,12 @@ impl Bus {
             _ => (),
         }
     }
-    pub fn tick_apu(&mut self, cycles: u8) -> Option<f32>{
+    pub fn tick_apu(&mut self, cycles: u8) -> Option<(f32,f32)>{
         self.apu.tick(cycles)
     }
 
-    pub fn tick(&mut self, cycles: u8) {
-        self.apu.tick(cycles);
+    pub fn tick(&mut self, cycles: u8) -> Option<(f32,f32)>{
+        let audio = self.apu.tick(cycles);
         self.cycle_acc += cycles as u16;
         self.cartridge.tick_rtc(cycles);
         if self.cycle_acc >= 256 {
@@ -231,5 +229,6 @@ impl Bus {
                 }
             }
         }
+        audio
     }
 }

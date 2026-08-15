@@ -355,8 +355,9 @@ impl Cpu {
         let pending = (bus.read(0xFFFF) & bus.read(0xFF0F)) & 0b0001_1111;
         if pending != 0 {
             self.halted = false
-        } else {
-            cycles += 4
+        }
+        if self.halted {
+            cycles += 4;
         }
         if self.ime && (pending != 0) {
             let lowest_set = pending & pending.wrapping_neg();
@@ -664,7 +665,7 @@ impl Cpu {
                 0xF8 => {
                     let opcode = (self.fetch_byte(bus) as i8) as i16;
                     self.set_flag_h((self.sp & 0b0000_1111).wrapping_add(opcode as u16 & 0b0000_1111) > 0x0F);
-                    self.set_flag_c((self.sp & 0b1111_1111).wrapping_add(opcode as u16 & 0b0000_1111) > 0xFF);
+                    self.set_flag_c((self.sp & 0b1111_1111).wrapping_add(opcode as u16 & 0b1111_1111) > 0xFF);
                     self.set_flag_z(false);
                     self.set_flag_n(false);
                     self.set_hl(self.sp.wrapping_add(opcode as u16));

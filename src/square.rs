@@ -7,6 +7,7 @@ const DUTY_REFERENCE: [[u8;8]; 4] = [
 ];
 
 pub struct SquareChannel{
+    negate_used: bool,
     has_sweep: bool,
     channel_enable: bool,
     dac_enable: bool,
@@ -31,6 +32,7 @@ pub struct SquareChannel{
 impl SquareChannel{
     pub fn new(has_sweep: bool) -> Self{
         SquareChannel{
+            negate_used: false,
             has_sweep,
             channel_enable: false,
             dac_enable: false,
@@ -94,12 +96,16 @@ impl SquareChannel{
                         else if self.sweep_shift > 0 {
                             self.frequency = new_freq;
                             self.shadow_frequency = new_freq;
+                            if self.calculate_sweep_freq() > 2047 { self.channel_enable = false }
                     }
                 }
             }
         }
         if step.is_multiple_of(2) && self.length_enable && (self.length_timer > 0){
                 self.length_timer -= 1;
+                if self.length_timer == 0{
+                    self.channel_enable = false;
+                }
         }
     }
 
@@ -107,54 +113,122 @@ impl SquareChannel{
         if !self.channel_enable {return 0.0}
         if !self.dac_enable { return 0.0 }
         let amplitude = DUTY_REFERENCE[self.duty_pattern as usize][self.duty_step as usize];
-        let digital_value = (amplitude*self.volume) as f32;
-        (digital_value / 7.5) -1.0
+        let centered_wave = if amplitude == 1 {1.0} else {-1.0};
+        centered_wave * (self.volume as f32 / 15.0)
     }
 
-    fn calculate_sweep_freq(&self) -> u16{
+    fn calculate_sweep_freq(&mut self) -> u16{
         let offset = self.shadow_frequency >> self.sweep_shift;
+        if self.sweep_decrease {self.negate_used = true}
         if self.sweep_decrease {self.shadow_frequency - offset} else {self.shadow_frequency + offset}
     }
 
-    fn trigger(&mut self){
-        self.channel_enable = true;
+    fn trigger(&mut self, frame_step: u8){
+        self.negate_used = false;
+        self.channel_enable = self.dac_enable;
         self.timer = self.period();
+        if self.length_timer == 0{
+            self.length_timer = 64;
+            if !frame_step.is_multiple_of(2) && self.length_enable{
+                self.length_timer -= 1;
+            }
+        }
         self.envelope_timer = self.envelope_period;
         self.volume = self.initial_volume;
         if self.has_sweep{
             self.shadow_frequency = self.frequency;
             self.sweep_timer = if self.sweep_period == 0 {8} else {self.sweep_period};
             self.sweep_enabled = (self.sweep_period > 0) || (self.sweep_shift > 0);
+            if (self.sweep_shift > 0) && (self.calculate_sweep_freq() > 2047){
+                self.channel_enable = false;
+            }
         }
     }
 
-    pub fn parse_input(&mut self, addr: u16, byte: u8){
+    pub fn reset(&mut self){
+        self.channel_enable = false;
+        self.dac_enable = false;
+        self.volume = 0;
+        self.initial_volume = 0;
+        self.envelope_period = 0;
+        self.envelope_timer = 0;
+        self.envelope_add = false;
+        self.length_enable = false;
+        self.frequency = 0;
+        self.timer = 0;
+        self.duty_step = 0;
+        self.duty_pattern = 0;
+        if self.has_sweep {
+            self.sweep_shift = 0;
+            self.sweep_decrease = false;
+            self.sweep_period = 0;
+            self.sweep_timer = 0;
+            self.sweep_enabled = false;
+            self.shadow_frequency = 0;
+        }
+    }
+
+    pub fn is_active(&self) -> bool{
+        self.channel_enable
+    }
+
+    pub fn parse_input(&mut self, addr: u16, byte: u8, frame_step: u8, apu_enabled: bool){
         match addr{
             0xFF10 => {
                 self.sweep_period = (byte & 0b0111_0000) >> 4;
                 self.sweep_decrease = (byte & 0b0000_1000) != 0;
+                if self.negate_used & !self.sweep_decrease{
+                    self.channel_enable = false;
+                }
                 self.sweep_shift = byte & 0b0000_0111
             }
             0xFF11 | 0xFF16 => {
-                self.duty_pattern = (byte & 0b1100_0000) >> 6;
+                if apu_enabled {
+                    self.duty_pattern = (byte & 0b1100_0000) >> 6;
+                }
                 self.length_timer = 64 - (byte & 0b0011_1111);
             }
             0xFF12 | 0xFF17 => {
+                self.dac_enable = (byte & 0b1111_1000) != 0;
+                if !self.dac_enable{
+                    self.channel_enable = false;
+                }
                 self.initial_volume = (byte & 0b1111_0000) >> 4;
                 self.envelope_add = (byte & 0b0000_1000) != 0;
                 self.envelope_period = byte & 0b0000_0111;
-                self.dac_enable = (self.volume != 0) || (self.envelope_add);
             }
             0xFF13 | 0xFF18 => {
                 self.frequency = (self.frequency & !0b1111_1111) | (byte as u16)
             }
             0xFF14 | 0xFF19 => {
-                if (byte & 0b1000_0000) != 0 {self.trigger();}
+                let previous_length = self.length_enable;
+                let triggered = (byte & 0b1000_0000) != 0;
+                self.frequency = (self.frequency & 0b1111_1111) | (((byte as u16) & 0b0000_0111) <<8);
                 self.length_enable = (byte & 0b0100_0000) != 0;
-                self.frequency = (self.frequency & 0b1000_1111_1111) | (((byte as u16) & 0b0000_0111) <<8);
+                if !previous_length && self.length_enable && (!frame_step.is_multiple_of(2)){
+                    if self.length_timer > 0{
+                        self.length_timer -= 1;
+                        if self.length_timer == 0{
+                            self.channel_enable = false;
+                        }
+                    }
+                }
+                if triggered {
+                    self.trigger(frame_step);
+                }
             }
 
             _ => (),
+        }
+    }
+
+    pub fn read(&self, addr : u16) -> u8{
+        match addr {
+            0xFF10 => (self.sweep_period << 4) | ((self.sweep_decrease as u8) << 3) | self.sweep_shift,
+            0xFF11 | 0xFF16 => self.duty_pattern << 6,
+            0xFF12 | 0xFF17 => (self.initial_volume << 4) | ((self.envelope_add as u8) << 3) | self.envelope_period,
+            0xFF14 | 0xFF19 => (self.length_enable as u8) << 6,
+            _ => 0x00,
         }
     }
 }

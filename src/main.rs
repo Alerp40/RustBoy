@@ -1,4 +1,7 @@
+mod noise;
 mod apu;
+mod square;
+mod wave;
 mod bus;
 mod cartridge;
 mod cpu;
@@ -73,7 +76,6 @@ fn main() {
         },
     )
     .expect("couldnt open window");
-    window.set_target_fps(60);
     let mut cpu_counter: usize = 0;
     while window.is_open() && !window.is_key_down(Key::RightShift) {
         let mut direction: u8 = 0b0000_1111;
@@ -104,19 +106,17 @@ fn main() {
         }
         bus.set_p1_buttons(direction, action);
         let cycles = cpu.step(&mut bus);
-        bus.tick(cycles);
-        if let Some(audio) = bus.tick_apu(cycles){
-            producer.try_push(audio);
-        }
-        cpu_counter += 1;
-        if cpu_counter >= 70224 {
-            window.update();
-            cpu_counter = 0;
+        let audio_options = bus.tick(cycles);
+        if let Some((audio_left,audio_right)) = audio_options{
+            while producer.vacant_len() < 2{
+                std::thread::yield_now();
+            }
+            let _ = producer.try_push(audio_left);
+            let _ = producer.try_push(audio_right);
         }
         let vblank = bus.tick_ppu(cycles);
         if vblank {
             let _ = window.update_with_buffer(bus.read_buffer(), SCREEN_WIDTH, SCREEN_HEIGHT);
-            cpu_counter = 0;
         }
     }
     if bus.has_battery() {
