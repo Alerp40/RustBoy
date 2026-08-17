@@ -1,5 +1,5 @@
-use crate::SCREEN_HEIGHT;
-use crate::SCREEN_WIDTH;
+pub const SCREEN_HEIGHT: usize = 144;
+pub const SCREEN_WIDTH: usize = 160;
 const DOTS_PER_LINE: u16 = 456;
 const VRAM_SIZE: usize = 8192;
 pub struct Ppu {
@@ -31,10 +31,9 @@ struct Sprite {
     oam_index: u8,
 }
 
-
-impl Ppu {
-    pub fn new() -> Self {
-        Ppu {
+impl Default for Ppu{
+    fn default() -> Self {
+        Self {
             buffer: [0x00FFFFFF; 23040],
             vram: [0; VRAM_SIZE],
             oam: [0; SCREEN_WIDTH],
@@ -54,6 +53,12 @@ impl Ppu {
             old_stat_bool: false,
             window_line: 0,
         }
+    }
+}
+
+impl Ppu {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn calculate_offset(&self, px: u8, py: u8) -> u16 {

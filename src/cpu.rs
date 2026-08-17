@@ -1,4 +1,4 @@
-use crate::Bus;
+use crate::bus::Bus;
 
 const FLAG_Z: u8 = 0b1000_0000;
 const FLAG_N: u8 = 0b0100_0000;

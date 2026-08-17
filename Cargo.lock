@@ -3,15 +3,6 @@
 version = 4
 
 [[package]]
-name = "Gameboy"
-version = "0.1.0"
-dependencies = [
- "cpal",
- "minifb",
- "ringbuf",
-]
-
-[[package]]
 name = "alsa"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -795,6 +786,15 @@ dependencies = [
  "crossbeam-utils",
  "portable-atomic",
  "portable-atomic-util",
+]
+
+[[package]]
+name = "rustboy"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "minifb",
+ "ringbuf",
 ]
 
 [[package]]

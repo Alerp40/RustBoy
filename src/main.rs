@@ -1,16 +1,16 @@
-mod noise;
-mod apu;
-mod square;
-mod wave;
-mod bus;
-mod cartridge;
-mod cpu;
-mod ppu;
+use rustboy::{
+    bus::Bus,
+    cpu::Cpu,
+    ppu::{SCREEN_HEIGHT, SCREEN_WIDTH},
+    cartridge::Cartridge,
+};
 use std::path::Path;
-
 use crate::cpu::Cpu;
 use bus::Bus;
 use cartridge::Cartridge;
+use cpal::traits::DeviceTrait;
+use cpal::traits::HostTrait;
+use cpal::traits::StreamTrait;
 use minifb::Key;
 use minifb::Window;
 use minifb::WindowOptions;
@@ -18,8 +18,6 @@ use ringbuf::SharedRb;
 use ringbuf::storage::Heap;
 use ringbuf::{traits::*, HeapRb};
 
-const SCREEN_HEIGHT: usize = 144;
-const SCREEN_WIDTH: usize = 160;
 
 fn main() {
     let args: Option<String> = std::env::args().nth(1);
@@ -47,7 +45,6 @@ fn main() {
     let supported_config = device.default_output_config().expect("No default stream config for device");
     let sample_rate = supported_config.sample_rate();
     let channels = supported_config.channels();
-    let sample_format = supported_config.sample_format();
     let stream_config = supported_config.into();
     let stream = device.build_output_stream(stream_config, 
         move |data: &mut [f32], _:&cpal::OutputCallbackInfo | {
@@ -76,7 +73,6 @@ fn main() {
         },
     )
     .expect("couldnt open window");
-    let mut cpu_counter: usize = 0;
     while window.is_open() && !window.is_key_down(Key::RightShift) {
         let mut direction: u8 = 0b0000_1111;
         let mut action: u8 = 0b0000_1111;

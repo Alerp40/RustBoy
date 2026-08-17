@@ -1,10 +1,9 @@
-use ringbuf::traits::RingBuffer;
-
 use crate::cartridge::Cartridge;
 use crate::ppu::Ppu;
 use crate::apu::Apu;
 const WRAM_SIZE: usize = 8192;
 pub struct Bus {
+    pub serial_output: String,
     apu : Apu,
     ppu: Ppu,
     cartridge: Cartridge,
@@ -30,6 +29,7 @@ impl Bus {
         let ppu = Ppu::new();
         let apu = Apu::new(sample_rate);
         Bus {
+            serial_output: String::new(),
             apu,
             ppu,
             cartridge: cart,
@@ -191,16 +191,14 @@ impl Bus {
 
             0xFF02 => {
                 if (byte & 0b1000_0000) != 0 {
-                    print!("{}", self.serial_data as char);
+                    self.serial_output.push(self.serial_data as char);
                 }
                 self.serial_control = byte & 0b0111_1111;
+                self.if_ |= 0b0000_1000
             }
 
             _ => (),
         }
-    }
-    pub fn tick_apu(&mut self, cycles: u8) -> Option<(f32,f32)>{
-        self.apu.tick(cycles)
     }
 
     pub fn tick(&mut self, cycles: u8) -> Option<(f32,f32)>{
