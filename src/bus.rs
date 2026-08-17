@@ -2,6 +2,13 @@ use crate::cartridge::Cartridge;
 use crate::ppu::Ppu;
 use crate::apu::Apu;
 const WRAM_SIZE: usize = 8192;
+const REG_IE: u16 = 0xFFFF;
+const REG_IF: u16 = 0xFF0F;
+const REG_DIV: u16 = 0xFF04;
+const REG_TIMA: u16 = 0xFF05;
+const REG_TMA: u16 = 0xFF06;
+const REG_TAC: u16 = 0xFF07;
+const REG_P1: u16 = 0xFF00;
 pub struct Bus {
     pub serial_output: String,
     apu : Apu,
@@ -106,19 +113,19 @@ impl Bus {
 
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            0xFFFF => self.ie,
+            REG_IE => self.ie,
 
-            0xFF00 => self.build_p1_byte(),
+            REG_P1 => self.build_p1_byte(),
 
-            0xFF0F => self.if_ | 0b1110_0000,
+            REG_IF => self.if_ | 0b1110_0000,
 
-            0xFF04 => self.div,
+            REG_DIV => self.div,
 
-            0xFF05 => self.tima,
+            REG_TIMA => self.tima,
 
-            0xFF06 => self.tma,
+            REG_TMA => self.tma,
 
-            0xFF07 => self.tac,
+            REG_TAC => self.tac,
 
             0xFF10..=0xFF3F => self.apu.read(addr),
 
@@ -146,22 +153,22 @@ impl Bus {
 
     pub fn write(&mut self, addr: u16, byte: u8) {
         match addr {
-            0xFFFF => self.ie = byte,
+            REG_IE => self.ie = byte,
 
-            0xFF00 => self.mode = byte & 0b0011_0000,
+            REG_P1 => self.mode = byte & 0b0011_0000,
 
-            0xFF0F => self.if_ = byte,
+            REG_IF => self.if_ = byte,
 
-            0xFF04 => {
+            REG_DIV => {
                 self.div = 0;
                 self.cycle_acc = 0;
             }
 
-            0xFF05 => self.tima = byte,
+            REG_TIMA => self.tima = byte,
 
-            0xFF06 => self.tma = byte,
+            REG_TMA => self.tma = byte,
 
-            0xFF07 => self.tac = byte,
+            REG_TAC => self.tac = byte,
 
             0xFF46 => {
                 let source_base = (byte as u16) << 8;
