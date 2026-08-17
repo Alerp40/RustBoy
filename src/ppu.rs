@@ -2,6 +2,17 @@ pub const SCREEN_HEIGHT: usize = 144;
 pub const SCREEN_WIDTH: usize = 160;
 const DOTS_PER_LINE: u16 = 456;
 const VRAM_SIZE: usize = 8192;
+const REG_LCDC: u16 = 0xFF40;
+const REG_STAT: u16 = 0xFF41;
+const REG_SCY: u16 = 0xFF42;
+const REG_SCX: u16 = 0xFF43;
+const REG_LY: u16 = 0xFF44;
+const REG_LYC: u16 = 0xFF45;
+const REG_BGP: u16 = 0xFF47;
+const REG_OBP0: u16 = 0xFF48;
+const REG_OBP1: u16 = 0xFF49;
+const REG_WY: u16 = 0xFF4A;
+const REG_WX: u16 = 0xFF4B;
 pub struct Ppu {
     buffer: [u32; SCREEN_WIDTH* SCREEN_HEIGHT],
     vram: [u8; 8192],
@@ -245,27 +256,27 @@ impl Ppu {
 
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            0xFF40 => self.lcdc,
+            REG_LCDC => self.lcdc,
 
-            0xFF41 => self.stat | 0b1000_0000,
+            REG_STAT => self.stat | 0b1000_0000,
 
-            0xFF42 => self.scy,
+            REG_SCY => self.scy,
 
-            0xFF43 => self.scx,
+            REG_SCX => self.scx,
 
-            0xFF44 => self.ly,
+            REG_LY => self.ly,
 
-            0xFF45 => self.lyc,
+            REG_LYC => self.lyc,
 
-            0xFF47 => self.bgp,
+            REG_BGP => self.bgp,
 
-            0xFF48 => self.obp0,
+            REG_OBP0 => self.obp0,
 
-            0xFF49 => self.obp1,
+            REG_OBP1 => self.obp1,
 
-            0xFF4A => self.wy,
+            REG_WY => self.wy,
 
-            0xFF4B => self.wx,
+            REG_WX => self.wx,
 
             0xFE00..=0xFE9F => self.oam[(addr - 0xFE00) as usize],
 
@@ -277,7 +288,7 @@ impl Ppu {
 
     pub fn write(&mut self, addr: u16, byte: u8) {
         match addr {
-            0xFF40 => {
+            REG_LCDC => {
                 if ((self.lcdc & 0b1000_0000) != 0) && ((byte & 0b1000_0000) == 0) {
                     self.ly = 0;
                     self.dots = 0;
@@ -289,25 +300,25 @@ impl Ppu {
                 self.lcdc = byte;
             }
 
-            0xFF41 => self.stat = (byte & 0b1111_1000) | (self.stat & 0b0000_0111),
+            REG_STAT => self.stat = (byte & 0b1111_1000) | (self.stat & 0b0000_0111),
 
-            0xFF42 => self.scy = byte,
+            REG_SCY => self.scy = byte,
 
-            0xFF43 => self.scx = byte,
+            REG_SCX => self.scx = byte,
 
-            0xFF44 => (),
+            REG_LY => (),
 
-            0xFF45 => self.lyc = byte,
+            REG_LYC => self.lyc = byte,
 
-            0xFF47 => self.bgp = byte,
+            REG_BGP => self.bgp = byte,
 
-            0xFF48 => self.obp0 = byte,
+            REG_OBP0 => self.obp0 = byte,
 
-            0xFF49 => self.obp1 = byte,
+            REG_OBP1 => self.obp1 = byte,
 
-            0xFF4A => self.wy = byte,
+            REG_WY => self.wy = byte,
 
-            0xFF4B => self.wx = byte,
+            REG_WX => self.wx = byte,
 
             0xFE00..=0xFE9F => self.oam[(addr - 0xFE00) as usize] = byte,
 
