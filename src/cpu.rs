@@ -177,6 +177,50 @@ impl Cpu {
         }
     }
 
+    fn alu_add(&mut self, src: u8, use_carry: bool){
+        let c = if use_carry && self.flag_c() { 1 } else { 0 };
+        self.set_flag_z(self.a.wrapping_add(src).wrapping_add(c) == 0);
+        self.set_flag_n(false);
+        self.set_flag_h((self.a & 0b0000_1111).wrapping_add(src & 0b0000_1111).wrapping_add(c) > 0x0F);
+        self.set_flag_c((self.a as u16).wrapping_add(src as u16).wrapping_add(c as u16) > 0xFF);
+        self.a = self.a.wrapping_add(src).wrapping_add(c)
+    }
+    fn alu_sub(&mut self, src: u8, use_carry: bool){
+        let c = if use_carry && self.flag_c() { 1 } else { 0 };
+        self.set_flag_z(self.a.wrapping_sub(src).wrapping_sub(c) == 0);
+        self.set_flag_n(true);
+        self.set_flag_h((self.a & 0b0000_1111) < (src & 0b0000_1111).wrapping_add(c));
+        self.set_flag_c((self.a as u16) < (src as u16).wrapping_add(c as u16));
+        self.a = self.a.wrapping_sub(src).wrapping_sub(c)
+    }
+    fn alu_and(&mut self, src: u8){
+        self.set_flag_z((self.a & src) == 0);
+        self.set_flag_n(false);
+        self.set_flag_h(true);
+        self.set_flag_c(false);
+        self.a &= src
+    }
+    fn alu_xor(&mut self, src: u8){
+        self.set_flag_z((self.a ^ src) == 0);
+        self.set_flag_n(false);
+        self.set_flag_h(false);
+        self.set_flag_c(false);
+        self.a ^= src
+    }
+    fn alu_or(&mut self, src: u8){
+        self.set_flag_z((self.a | src) == 0);
+        self.set_flag_n(false);
+        self.set_flag_h(false);
+        self.set_flag_c(false);
+        self.a |= src
+    }
+    fn alu_cp(&mut self, src: u8){
+        self.set_flag_z(self.a == src);
+        self.set_flag_n(true);
+        self.set_flag_h((self.a & 0b0000_1111) < (src & 0x0F));
+        self.set_flag_c(self.a < src);
+    }
+
     fn execute_cb(&mut self, cb: u8, bus: &mut Bus, cycles: &mut u8) {
         match cb {
             0x00..=0x3F => {
@@ -991,84 +1035,25 @@ impl Cpu {
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z(self.a.wrapping_add(src) == 0);
-                    self.set_flag_n(false);
-                    if (self.a & 0b0000_1111).wrapping_add(src & 0b0000_1111) > 0x0F {
-                        self.set_flag_h(true)
-                    } else {
-                        self.set_flag_h(false)
-                    }
-                    if (self.a as u16).wrapping_add(src as u16) > 0xFF {
-                        self.set_flag_c(true)
-                    } else {
-                        self.set_flag_c(false)
-                    }
-                    self.a = self.a.wrapping_add(src)
+                    self.alu_add(src, false);
                 }
                 0x88..=0x8F => {
-                    let c = if self.flag_c() { 1 } else { 0 };
                     let mut src = byte & 0b111;
                     if src == 6 {
                         src = bus.read(self.hl())
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z(self.a.wrapping_add(src).wrapping_add(c) == 0);
-                    self.set_flag_n(false);
-                    if (self.a & 0b0000_1111).wrapping_add(src & 0b0000_1111).wrapping_add(c) > 0x0F {
-                        self.set_flag_h(true)
-                    } else {
-                        self.set_flag_h(false)
-                    }
-                    if (self.a as u16)
-                        .wrapping_add(src as u16)
-                        .wrapping_add(c as u16)
-                        > 0xFF
-                    {
-                        self.set_flag_c(true)
-                    } else {
-                        self.set_flag_c(false)
-                    }
-                    self.a = self.a.wrapping_add(src).wrapping_add(c)
+                    self.alu_add(src, true);
                 }
 
                 0xCE => {
-                    let c = if self.flag_c() { 1 } else { 0 };
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z(self.a.wrapping_add(src).wrapping_add(c) == 0);
-                    self.set_flag_n(false);
-                    if (self.a & 0b0000_1111).wrapping_add(src & 0b0000_1111).wrapping_add(c) > 0x0F {
-                        self.set_flag_h(true)
-                    } else {
-                        self.set_flag_h(false)
-                    }
-                    if (self.a as u16)
-                        .wrapping_add(src as u16)
-                        .wrapping_add(c as u16)
-                        > 0xFF
-                    {
-                        self.set_flag_c(true)
-                    } else {
-                        self.set_flag_c(false)
-                    }
-                    self.a = self.a.wrapping_add(src).wrapping_add(c)
+                    self.alu_add(src, true);
                 }
-
                 0xC6 => {
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z(self.a.wrapping_add(src) == 0);
-                    self.set_flag_n(false);
-                    if (self.a & 0b0000_1111).wrapping_add(src & 0b0000_1111) > 0x0F {
-                        self.set_flag_h(true)
-                    } else {
-                        self.set_flag_h(false)
-                    }
-                    if (self.a as u16).wrapping_add(src as u16) > 0xFF {
-                        self.set_flag_c(true)
-                    } else {
-                        self.set_flag_c(false)
-                    }
-                    self.a = self.a.wrapping_add(src)
+                    self.alu_add(src, false);
                 }
 
                 0x90..=0x97 => {
@@ -1078,44 +1063,26 @@ impl Cpu {
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z(self.a.wrapping_sub(src) == 0);
-                    self.set_flag_n(true);
-                    self.set_flag_h((self.a & 0b0000_1111) < (src & 0b0000_1111));
-                    self.set_flag_c(self.a < src);
-                    self.a = self.a.wrapping_sub(src)
+                    self.alu_sub(src, false);
                 }
                 0x98..=0x9F => {
-                    let c = if self.flag_c() { 1 } else { 0 };
                     let mut src = byte & 0b111;
                     if src == 6 {
                         src = bus.read(self.hl())
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z(self.a.wrapping_sub(src).wrapping_sub(c) == 0);
-                    self.set_flag_n(true);
-                    self.set_flag_h((self.a & 0b0000_1111) < (src & 0b0000_1111).wrapping_add(c));
-                    self.set_flag_c((self.a as u16) < (src as u16).wrapping_add(c as u16));
-                    self.a = self.a.wrapping_sub(src).wrapping_sub(c)
+                    self.alu_sub(src, true);
                 }
 
                 0xD6 => {
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z(self.a.wrapping_sub(src) == 0);
-                    self.set_flag_n(true);
-                    self.set_flag_h((self.a & 0b0000_1111) < (src & 0b0000_1111));
-                    self.set_flag_c(self.a < src);
-                    self.a = self.a.wrapping_sub(src)
+                    self.alu_sub(src, false);
                 }
 
                 0xDE => {
-                    let c = if self.flag_c() { 1 } else { 0 };
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z(self.a.wrapping_sub(src).wrapping_sub(c) == 0);
-                    self.set_flag_n(true);
-                    self.set_flag_h((self.a & 0b0000_1111) < (src & 0b0000_1111).wrapping_add(c));
-                    self.set_flag_c((self.a as u16) < (src as u16).wrapping_add(c as u16));
-                    self.a = self.a.wrapping_sub(src).wrapping_sub(c)
+                    self.alu_sub(src, true);
                 }
 
                 0xA0..=0xA7 => {
@@ -1125,19 +1092,11 @@ impl Cpu {
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z((self.a & src) == 0);
-                    self.set_flag_n(false);
-                    self.set_flag_h(true);
-                    self.set_flag_c(false);
-                    self.a &= src
+                    self.alu_and(src);
                 }
                 0xE6 => {
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z((self.a & src) == 0);
-                    self.set_flag_n(false);
-                    self.set_flag_h(true);
-                    self.set_flag_c(false);
-                    self.a &= src
+                    self.alu_and(src);
                 }
 
                 0xA8..=0xAF => {
@@ -1147,19 +1106,11 @@ impl Cpu {
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z((self.a ^ src) == 0);
-                    self.set_flag_n(false);
-                    self.set_flag_h(false);
-                    self.set_flag_c(false);
-                    self.a ^= src
+                    self.alu_xor(src);
                 }
                 0xEE => {
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z((self.a ^ src) == 0);
-                    self.set_flag_n(false);
-                    self.set_flag_h(false);
-                    self.set_flag_c(false);
-                    self.a ^= src
+                    self.alu_xor(src);
                 }
 
                 0xB0..=0xB7 => {
@@ -1169,19 +1120,11 @@ impl Cpu {
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z((self.a | src) == 0);
-                    self.set_flag_n(false);
-                    self.set_flag_h(false);
-                    self.set_flag_c(false);
-                    self.a |= src
+                    self.alu_or(src);
                 }
                 0xF6 => {
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z((self.a | src) == 0);
-                    self.set_flag_n(false);
-                    self.set_flag_h(false);
-                    self.set_flag_c(false);
-                    self.a |= src
+                    self.alu_or(src);
                 }
 
                 0xB8..=0xBF => {
@@ -1191,17 +1134,11 @@ impl Cpu {
                     } else {
                         src = self.reg(src)
                     }
-                    self.set_flag_z(self.a == src);
-                    self.set_flag_n(true);
-                    self.set_flag_h((self.a & 0b0000_1111) < (src & 0x0F));
-                    self.set_flag_c(self.a < src);
+                    self.alu_cp(src);
                 }
                 0xFE => {
                     let src = self.fetch_byte(bus);
-                    self.set_flag_z(self.a == src);
-                    self.set_flag_n(true);
-                    self.set_flag_h((self.a & 0b0000_1111) < (src & 0x0F));
-                    self.set_flag_c(self.a < src);
+                    self.alu_cp(src);
                 }
 
                 0x18 => {
