@@ -181,7 +181,7 @@ impl Ppu {
         output
     }
 
-    fn reader_bg_window(&mut self) -> ([u8; SCREEN_WIDTH], bool){
+    fn render_bg_window(&mut self) -> ([u8; SCREEN_WIDTH], bool){
         let mut bg_index_line: [u8; SCREEN_WIDTH] = [0; SCREEN_WIDTH];
         let mut drawn = false;
         if !self.bg_enabled() {
@@ -265,7 +265,7 @@ impl Ppu {
         if self.ly >= SCREEN_HEIGHT as u8 {
             return;
         }
-        let (bg_index_line, window_drawn) = self.reader_bg_window();
+        let (bg_index_line, window_drawn) = self.render_bg_window();
         if self.obj_enabled() {
             self.render_sprites(&bg_index_line);
         }
