@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-pub struct Apu{
-=======
 use crate::{noise, square, wave};
 
 const APU_READ_MASKS: [u8; 23] = [0x80,0x3F,0x00,0xFF,0xBF,0xFF,0x3F,0x00,0xFF,0xBF,0x7F,0xFF,0x9F,0xFF,0xBF,0xFF,0xFF,0x00,0x00,0xBF,0x00,0x00,0x70];
@@ -168,5 +165,4 @@ impl Apu{
         }
     }
 
->>>>>>> f50670f (apu: implemented noise channel (CH4), stereo mixer, and register accuracy, implemented APU register read masks and master power toggling, Correct frame sequencer step order and DAC interlock behaviour for length counters, add NR50 master volume and NR51 stereo panning, Resolve timing and buffer sinchronization issues across APU and ringbuffer. Fixed various cycle and timing errors.)
 }

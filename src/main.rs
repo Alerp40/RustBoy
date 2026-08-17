@@ -5,9 +5,6 @@ use rustboy::{
     cartridge::Cartridge,
 };
 use std::path::Path;
-use crate::cpu::Cpu;
-use bus::Bus;
-use cartridge::Cartridge;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
