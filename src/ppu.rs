@@ -181,10 +181,7 @@ impl Ppu {
         output
     }
 
-    pub fn render_scanline(&mut self) {
-        if self.ly >= SCREEN_HEIGHT as u8 {
-            return;
-        }
+    fn reader_bg_window(&mut self) -> ([u8; SCREEN_WIDTH], bool){
         let mut bg_index_line: [u8; SCREEN_WIDTH] = [0; SCREEN_WIDTH];
         let mut drawn = false;
         if !self.bg_enabled() {
@@ -230,37 +227,49 @@ impl Ppu {
                 self.buffer[((self.ly as u16) * SCREEN_WIDTH as u16 + screen_x as u16) as usize] = rgb;
             }
         }
-        if self.obj_enabled() {
-            let sprites = self.scan_oam();
-            let mut collected_sprites: Vec<Sprite> = sprites.into_iter().flatten().collect();
-            collected_sprites.sort_by_key(|item| (item.x, item.oam_index));
-            collected_sprites.reverse();
-            for sprite in collected_sprites.iter().copied() {
-                let row = self.fetch_sprite_row(sprite);
-                for col in 0..8 {
-                    let screen_x = sprite.x as i16 - 8 + col as i16;
-                    if !((0..(SCREEN_WIDTH as i16)).contains(&screen_x)) {
-                        continue;
-                    }
-                    let index = row[col as usize];
-                    if index == 0 {
-                        continue;
-                    }
-                    if (sprite.flags & 0b1000_0000) != 0 && bg_index_line[screen_x as usize] != 0 {
-                        continue;
-                    }
-                    let palette = if (sprite.flags & 0b0001_0000) != 0 {
-                        self.obp1
-                    } else {
-                        self.obp0
-                    };
-                    let shade = (palette >> (index * 2)) & 0b11;
-                    let rgb = self.shade_to_rgb(shade);
-                    self.buffer[self.ly as usize * SCREEN_WIDTH + screen_x as usize] = rgb;
+        (bg_index_line, drawn)
+    }
+
+    fn render_sprites(&mut self, bg_index_line: &[u8; SCREEN_WIDTH]){
+        let sprites = self.scan_oam();
+        let mut collected_sprites: Vec<Sprite> = sprites.into_iter().flatten().collect();
+        collected_sprites.sort_by_key(|item| (item.x, item.oam_index));
+        collected_sprites.reverse();
+        for sprite in collected_sprites.iter().copied() {
+            let row = self.fetch_sprite_row(sprite);
+            for col in 0..8 {
+                let screen_x = sprite.x as i16 - 8 + col as i16;
+                if !((0..(SCREEN_WIDTH as i16)).contains(&screen_x)) {
+                    continue;
                 }
+                let index = row[col as usize];
+                if index == 0 {
+                    continue;
+                }
+                if (sprite.flags & 0b1000_0000) != 0 && bg_index_line[screen_x as usize] != 0 {
+                    continue;
+                }
+                let palette = if (sprite.flags & 0b0001_0000) != 0 {
+                    self.obp1
+                } else {
+                    self.obp0
+                };
+                let shade = (palette >> (index * 2)) & 0b11;
+                let rgb = self.shade_to_rgb(shade);
+                self.buffer[self.ly as usize * SCREEN_WIDTH + screen_x as usize] = rgb;
             }
         }
-        if drawn {
+    }
+
+    pub fn render_scanline(&mut self) {
+        if self.ly >= SCREEN_HEIGHT as u8 {
+            return;
+        }
+        let (bg_index_line, window_drawn) = self.reader_bg_window();
+        if self.obj_enabled() {
+            self.render_sprites(&bg_index_line);
+        }
+        if window_drawn {
             self.window_line += 1
         }
     }
