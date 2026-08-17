@@ -72,6 +72,31 @@ impl Ppu {
         Self::default()
     }
 
+    fn lcd_enabled(&self) -> bool{
+        (self.lcdc & 0b1000_0000) != 0
+    }
+    fn window_map_area(&self) -> bool{
+        (self.lcdc & 0b0100_0000) != 0
+    }
+    fn window_enabled(&self) -> bool{
+        (self.lcdc & 0b0010_0000) != 0
+    }
+    fn bg_window_data_area(&self) -> bool{
+        (self.lcdc & 0b0001_0000) != 0
+    }
+    fn bg_map_area(&self) -> bool{
+        (self.lcdc & 0b0000_1000) != 0
+    }
+    fn obj_size_16(&self) -> bool{
+        (self.lcdc & 0b0000_0100) != 0
+    }
+    fn obj_enabled(&self) -> bool{
+        (self.lcdc & 0b0000_0010) != 0
+    }
+    fn bg_enabled(&self) -> bool{
+        (self.lcdc & 0b0000_0001) != 0
+    }
+
     pub fn calculate_offset(&self, px: u8, py: u8) -> u16 {
         let column = px / 8;
         let row = py / 8;
@@ -80,13 +105,13 @@ impl Ppu {
     }
 
     pub fn tile_data_addr(&self, index: u8) -> u16 {
-        let map_base: u32 = if (self.lcdc & 0b0001_0000) != 0 {
+        let map_base: u32 = if self.bg_window_data_area() {
             0x0000
         } else {
             0x1000
         };
         let index_signed = index as i8;
-        let is_signed = !((self.lcdc & 0b0001_0000) != 0);
+        let is_signed = !self.bg_window_data_area();
         if is_signed {
             ((map_base as i16) + (index_signed as i16) * 16) as u16
         } else {
@@ -109,7 +134,7 @@ impl Ppu {
             let sprite_x = self.oam[(i * 4) + 1];
             let sprite_tile = self.oam[(i * 4) + 2];
             let sprite_flags = self.oam[(i * 4) + 3];
-            let height: u8 = if (self.lcdc & 0b100) != 0 { 16 } else { 8 };
+            let height: u8 = if self.obj_size_16() { 16 } else { 8 };
             let touch_ly = (sprite_y <= (self.ly + 16))
                 && (((self.ly as u16) + 16) < ((sprite_y as u16) + (height as u16)));
             if touch_ly {
@@ -132,7 +157,7 @@ impl Ppu {
     fn fetch_sprite_row(&self, sprite: Sprite) -> [u8; 8] {
         let mut output = [0; 8];
         let mut row = (self.ly + 16) - sprite.y;
-        let height = if (self.lcdc & 0b100) != 0 { 16 } else { 8 };
+        let height = if self.obj_size_16() { 16 } else { 8 };
         if (sprite.flags & 0b0100_0000) != 0 {
             row = (height - 1) - row
         };
@@ -162,14 +187,14 @@ impl Ppu {
         }
         let mut bg_index_line: [u8; SCREEN_WIDTH] = [0; SCREEN_WIDTH];
         let mut drawn = false;
-        if (self.lcdc & 0b01) == 0 {
+        if !self.bg_enabled() {
             let rgb = self.shade_to_rgb(0);
             for (i,bg_index) in bg_index_line.iter_mut().enumerate() {
                 self.buffer[((self.ly as u16) * SCREEN_WIDTH as u16 + i as u16) as usize] = rgb;
                 *bg_index = 0;
             }
         } else {
-            let window_active = ((self.lcdc & 0b0010_0000) != 0) && (self.ly >= self.wy);
+            let window_active = self.window_enabled() && (self.ly >= self.wy);
             let wx_offset = self.wx.wrapping_sub(7);
             for screen_x in 0_u8..(SCREEN_WIDTH as u8) {
                 let calculated_x: u8;
@@ -179,7 +204,7 @@ impl Ppu {
                     drawn = true;
                     calculated_x = screen_x - (wx_offset);
                     calculated_y = self.window_line;
-                    map_pick = if (self.lcdc & 0b0100_0000) != 0 {
+                    map_pick = if self.window_map_area() {
                         0x1C00
                     } else {
                         0x1800
@@ -187,7 +212,7 @@ impl Ppu {
                 } else {
                     calculated_y = self.ly.wrapping_add(self.scy);
                     calculated_x = screen_x.wrapping_add(self.scx);
-                    map_pick = if (self.lcdc & 0b1000) != 0 {
+                    map_pick = if self.bg_map_area() {
                         0x1C00
                     } else {
                         0x1800
@@ -205,7 +230,7 @@ impl Ppu {
                 self.buffer[((self.ly as u16) * SCREEN_WIDTH as u16 + screen_x as u16) as usize] = rgb;
             }
         }
-        if (self.lcdc & 0b10) != 0 {
+        if self.obj_enabled() {
             let sprites = self.scan_oam();
             let mut collected_sprites: Vec<Sprite> = sprites.into_iter().flatten().collect();
             collected_sprites.sort_by_key(|item| (item.x, item.oam_index));
@@ -289,7 +314,7 @@ impl Ppu {
     pub fn write(&mut self, addr: u16, byte: u8) {
         match addr {
             REG_LCDC => {
-                if ((self.lcdc & 0b1000_0000) != 0) && ((byte & 0b1000_0000) == 0) {
+                if (self.lcd_enabled()) && ((byte & 0b1000_0000) == 0) {
                     self.ly = 0;
                     self.dots = 0;
                     self.stat &= !0b11;
@@ -336,7 +361,7 @@ impl Ppu {
     }
 
     pub fn tick(&mut self, cycles: u8) -> u8 {
-        if (self.lcdc & 0x80) == 0 {
+        if !self.lcd_enabled() {
             return 0;
         };
         let mut interrupts = 0;
